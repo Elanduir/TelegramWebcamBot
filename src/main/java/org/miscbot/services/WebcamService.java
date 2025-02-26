@@ -41,13 +41,14 @@ public class WebcamService {
     }
 
     private List<Webcam> getWebcamInfo(Location location) throws Exception  {
-        var uri = URI.create(windyBaseUrl + "webcams?" + String.format(param, location.getLat(), location.getLon()).replaceAll(",", "%2C") + "&include=images");
+        var uri = URI.create(windyBaseUrl + "webcams?" + String.format(param, location.getLat(), location.getLon()).replaceAll(",", "%2C") + "&include=images,urls");
         var request = HttpRequest.newBuilder()
                 .uri(uri)
                 .setHeader("x-windy-api-key", windyToken)
                 .build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         var json = response.body();
+        System.out.println(json);
         var body = new ObjectMapper().readTree(json);
         if(body.get("total").asInt() == 0){
             throw new NoSuchElementException("No Webcam found");

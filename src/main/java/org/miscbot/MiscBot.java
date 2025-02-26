@@ -26,7 +26,7 @@ import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
-    private final String botToken = System.getenv("MISC_BOT_TOKEN");
+    private String botToken = System.getenv("MISC_BOT_TOKEN");
     private final String windyToken = System.getenv("WINDY_TOKEN");
     private final String geocodingToken = System.getenv("GEOCODING_TOKEN");
     private final String COMMAND_WEBCAM = "/webcam";
@@ -148,11 +148,12 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     private String getCaption(Webcam webcam) {
-        return String.format("<strong>Location found</strong>:\n%s\n\n<strong>Webcam Location</strong>:\n%s @ %s\n\n<strong>URL</strong>\n%s",
+        return String.format("<strong>Location found</strong>:\n%s\n\n<strong>Webcam Location</strong>:\n%s @ %s\n\n<strong>Links</strong>:\n%s\n%s",
                 webcam.getOriginalLocation().getDisplay_name(),
                 webcam.getTitle(),
                 webcam.getLastUpdatedOn(),
-                webcam.getCurrentPreview()
+                webcam.getWebcamUrlDetail(),
+                webcam.getWebcamUrlProvider()
         );
     }
 

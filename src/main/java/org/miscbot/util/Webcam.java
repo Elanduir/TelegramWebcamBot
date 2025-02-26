@@ -11,6 +11,23 @@ public class Webcam {
     private Images images;
     private File currentImage;
     private Location originalLocation;
+    private Urls urls;
+
+    public String getWebcamUrlDetail() {
+        return getUrls().getDetail();
+    }
+
+    public String getWebcamUrlProvider() {
+        return getUrls().getProvider();
+    }
+
+    public Urls getUrls() {
+        return urls;
+    }
+
+    public void setUrls(Urls urls) {
+        this.urls = urls;
+    }
 
     public Location getOriginalLocation() {
         return originalLocation;
@@ -94,6 +111,36 @@ public class Webcam {
     @Override
     public String toString() {
         return title + " " + webcamId + " " + status;
+    }
+
+    public static class Urls {
+        private String detail;
+        private String edit;
+        private String provider;
+
+        public String getDetail() {
+            return detail;
+        }
+
+        public void setDetail(String detail) {
+            this.detail = detail;
+        }
+
+        public String getEdit() {
+            return edit;
+        }
+
+        public void setEdit(String edit) {
+            this.edit = edit;
+        }
+
+        public String getProvider() {
+            return provider;
+        }
+
+        public void setProvider(String provider) {
+            this.provider = provider;
+        }
     }
 
 }

@@ -40,9 +40,15 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
     GeocodingService geocodingService = new GeocodingService(geocodingToken);
 
     public MiscBot() {
+        String botDebugToken = System.getenv("MISC_BOT_TOKEN_DEBUG");
+        System.out.println(botDebugToken);
+        if(botDebugToken != null) {
+            this.botToken = botDebugToken;
+        }
         logger.info("BotToken: {}", botToken);
         logger.info("WindyToken: {}", windyToken);
         logger.info("GeocodingToken: {}", geocodingToken);
+        logger.info("Bot running in {} mode", botDebugToken != null ? "debug" : "production");
     }
 
     @Override

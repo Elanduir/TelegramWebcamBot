@@ -48,7 +48,6 @@ public class WebcamService {
                 .build();
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         var json = response.body();
-        System.out.println(json);
         var body = new ObjectMapper().readTree(json);
         if(body.get("total").asInt() == 0){
             throw new NoSuchElementException("No Webcam found");

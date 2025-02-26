@@ -2,11 +2,10 @@ package org.miscbot.services;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.miscbot.util.Location;
 
-import java.net.URL;
+import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
@@ -22,15 +21,13 @@ public class GeocodingService {
         this.token = token;
     }
 
-    public Location getLocation(String address) throws Exception {
-        List<Location> locations;
-
+    public Location getLocation(String address) throws NoSuchElementException {
+        List<Location> locations = null;
         try {
-            URL url = new URL(String.format(urlTemplate, address, token));
-            HttpRequest request = HttpRequest.newBuilder().uri(url.toURI()).GET().build();
+            var uri = URI.create(String.format(urlTemplate, address, token));
+            var request = HttpRequest.newBuilder().uri(uri).GET().build();
             var response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            String json = response.body();
-            JsonNode body = new ObjectMapper().readTree(json);
+            var body = new ObjectMapper().readTree(response.body());
             var mapper = new ObjectMapper();
             mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
             var reader = mapper.readerFor(new TypeReference<List<Location>>() {});
@@ -38,12 +35,13 @@ public class GeocodingService {
             if(locations.isEmpty()) {
                 throw new NoSuchElementException("Location could not be found");
             }
-        }catch (Exception e) {
-            locations = null;
+        }catch (NoSuchElementException e) {
             throw e;
+        } catch (Exception e) {
+            System.out.println("Error during location search:");
+            System.out.println(e.getMessage());
         }
-
-        return locations.get(0);
+        return locations == null ? null : locations.getFirst();
     }
 
 }

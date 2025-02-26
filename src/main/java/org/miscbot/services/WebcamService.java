@@ -9,7 +9,6 @@ import org.miscbot.util.Location;
 import org.miscbot.util.Webcam;
 
 import java.io.File;
-import java.io.IOException;
 import java.net.URI;
 import java.net.URL;
 import java.net.http.HttpClient;
@@ -30,9 +29,9 @@ public class WebcamService {
         this.windyToken = windyToken;
     }
 
-
-    public List<Webcam> getImage(Location location) throws Exception {
+    public List<Webcam> getImage(Location location, int limit) throws Exception {
         var webcams = getWebcamInfo(location);
+        webcams = webcams.subList(0, Math.min(limit, webcams.size()));
         webcams.forEach(webcam -> {
             webcam.setCurrentImage(
                     fetchImage(webcam.getImages().getCurrent().getPreview())
@@ -42,21 +41,22 @@ public class WebcamService {
     }
 
     private List<Webcam> getWebcamInfo(Location location) throws Exception  {
-        URL url = new URL(windyBaseUrl + "webcams?" + String.format(param, location.getLat(), location.getLon()).replaceAll(",", "%2C") + "&include=images");
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(url.toURI())
+        var uri = URI.create(windyBaseUrl + "webcams?" + String.format(param, location.getLat(), location.getLon()).replaceAll(",", "%2C") + "&include=images");
+        var request = HttpRequest.newBuilder()
+                .uri(uri)
                 .setHeader("x-windy-api-key", windyToken)
                 .build();
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        String json = response.body();
-        JsonNode body = new ObjectMapper().readTree(json);
+        var response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        var json = response.body();
+        var body = new ObjectMapper().readTree(json);
         if(body.get("total").asInt() == 0){
             throw new NoSuchElementException("No Webcam found");
         }
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectReader reader = mapper.readerFor(new TypeReference<List<Webcam>>() {});
+        var mapper = new ObjectMapper();
+        var reader = mapper.readerFor(new TypeReference<List<Webcam>>() {});
         List<Webcam> webcams = reader.readValue(body.get("webcams"));
-        return webcams.stream().filter(e -> e.getStatus().equals("active")).limit(5).toList();
+        webcams.forEach(w -> w.setOriginalLocation(location));
+        return webcams.stream().filter(e -> e.getStatus().equals("active")).toList();
     }
 
     private File fetchImage(String url)  {
@@ -65,7 +65,7 @@ public class WebcamService {
                 .build();
         try{
             var response = client.send(request, HttpResponse.BodyHandlers.ofByteArray());
-            File tempFile = File.createTempFile(UUID.randomUUID().toString(), ".jpg");
+            var tempFile = File.createTempFile(UUID.randomUUID().toString(), ".jpg");
             tempFile.deleteOnExit();
             if(response.statusCode() == 200){
                 Files.write(tempFile.toPath(), response.body());

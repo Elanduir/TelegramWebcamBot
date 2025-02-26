@@ -6,6 +6,8 @@ import org.miscbot.services.WebcamService;
 import org.miscbot.util.Webcam;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
+import org.telegram.telegrambots.meta.api.methods.ParseMode;
+import org.telegram.telegrambots.meta.api.methods.botapimethods.PartialBotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendPhoto;
@@ -16,13 +18,20 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
 
 public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
     private final String botToken = System.getenv("MISC_BOT_TOKEN");
     private final String windyToken = System.getenv("WINDY_TOKEN");
     private final String geocodingToken = System.getenv("GEOCODING_TOKEN");
+    private final String COMMAND_WEBCAM = "/webcam";
+    private final String COMMAND_WEBCAM_SHORT = "/w";
+    private final String COMMAND_WEBCAM_NR = "/wn";
+    private final String COMMAND_START = "/start";
+
     TelegramClient client = new OkHttpTelegramClient(botToken);
     WebcamService webcamService = new WebcamService(windyToken);
     GeocodingService geocodingService = new GeocodingService(geocodingToken);
@@ -32,11 +41,111 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
         if(update.hasMessage() && update.getMessage().hasText()) {
             logRequest(update);
             switch (update.getMessage().getText()) {
-                case String s when s.startsWith("/webcam ") -> handleWebcam(update);
-                case String s when s.startsWith("/start") -> handleStart(update);
+                case String s when s.startsWith(COMMAND_START) -> handleStart(update);
+                case String s when s.startsWith(COMMAND_WEBCAM_NR) -> handleWebcamNr(update);
+                case String s when s.startsWith(COMMAND_WEBCAM) || s.startsWith(COMMAND_WEBCAM_SHORT) -> handleWebcam(update);
                 default -> System.out.println("invalid command detected: " + update.getMessage().getText());
             }
         }
+    }
+
+    private void handleStart(Update update) {
+        var message = SendMessage.builder()
+                .chatId(update.getMessage().getChatId())
+                .text("""
+                        You can start querying for webcams by using:
+                        /webcam {location}
+                        /w {location}
+                        /wn {limit} {location}""")
+                .build();
+        try {
+            client.execute(message);
+        }catch (Exception e) {
+            System.out.println("Exception during /start command:");
+            System.out.println(e.getMessage());
+        }
+    }
+
+    private void handleWebcam(Update update) {
+        handleWebcamLimit(update, 1);
+    }
+
+    private void handleWebcamNr(Update update) {
+         var split = update.getMessage().getText().replace(COMMAND_WEBCAM_NR, "").trim().split(" ");
+         if(split.length != 0){
+             try{
+                 var nr = Integer.parseInt(split[0]);
+                 update.getMessage().setText("/wn " + Arrays.stream(split).skip(1).collect(Collectors.joining(" ")));
+                 handleWebcamLimit(update, nr);
+             }catch (NumberFormatException e){
+                 System.out.println("Invalid command: " + update.getMessage().getText());
+             }
+         }
+    }
+
+    private void handleWebcamLimit(Update update, int limit) {
+        Object message;
+        List<Webcam> webcams = new ArrayList<>();
+        var inbMessage = update.getMessage().getText()
+                .replace(COMMAND_WEBCAM_NR, "")
+                .replace(COMMAND_WEBCAM, "")
+                .replace(COMMAND_WEBCAM_SHORT, "")
+                .trim()
+                .replace(" ", "%20");
+        try {
+            webcams = getAllWebcams(inbMessage, limit);
+            var inputMedia = webcams.stream().map(webcam -> {
+                var iM = new InputMediaPhoto(webcam.getCurrentImage(), webcam.getTitle());
+                iM.setCaption(getCaption(webcam));
+                iM.setParseMode(ParseMode.HTML);
+                return iM;
+            }).toList();
+            if(inputMedia.isEmpty()){
+                throw new NoSuchElementException("No webcams found");
+            }else if (inputMedia.size() == 1) {
+                message = SendPhoto.builder()
+                        .caption(getCaption(webcams.getFirst()))
+                        .parseMode(ParseMode.HTML)
+                        .chatId(update.getMessage().getChatId())
+                        .photo(new InputFile(webcams.getFirst().getCurrentImage())).build();
+            } else {
+                message = SendMediaGroup.builder()
+                        .chatId(update.getMessage().getChatId())
+                        .medias(inputMedia).build();
+            }
+        } catch (Exception e) {
+            message = SendMessage.builder()
+                    .chatId(update.getMessage().getChatId())
+                    .text(e.getMessage())
+                    .build();
+        }
+        try {
+            if (message instanceof SendPhoto) {
+                client.execute((SendPhoto) message);
+            } else if (message instanceof SendMediaGroup) {
+                client.execute((SendMediaGroup) message);
+            } else if (message != null) {
+                client.execute((SendMessage) message);
+            }
+        } catch (TelegramApiException e) {
+            throw new RuntimeException(e);
+        }finally {
+            webcams.forEach(Webcam::cleanup);
+        }
+    }
+
+    private List<Webcam> getAllWebcams(String location, int limit) throws Exception {
+        return webcamService.getImage(geocodingService.getLocation(location), limit);
+
+    }
+
+    private String getCaption(Webcam webcam) {
+        return String.format("<strong>Location found</strong>:\n%s\n\n<strong>Webcam Location</strong>:\n%s @ %s\n\n<strong>URL</strong>\n%s",
+                webcam.getOriginalLocation().getDisplay_name(),
+                webcam.getTitle(),
+                webcam.getLastUpdatedOn(),
+                webcam.getCurrentPreview()
+        );
     }
 
     private void logRequest(Update update) {
@@ -46,77 +155,6 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
                 update.getMessage().getText()
         );
         System.out.println("-------------------");
-    }
-
-    private void handleStart(Update update) {
-        SendMessage message = SendMessage.builder()
-                .chatId(update.getMessage().getChatId())
-                .text("You can query for webcams by using the command: /webcam {location}")
-                .build();
-        try {
-            client.execute(message);
-        }catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void handleWebcam(Update update) {
-        SendMessage message = null;
-        SendMediaGroup mediaGroup = null;
-        SendPhoto sendPhoto = null;
-        List<Webcam> webcams = new ArrayList<>();
-        try {
-            var inbMessage = update.getMessage().getText().replace("/webcam ", "").replace(" ", "%20");
-            var location = geocodingService.getLocation(inbMessage);
-            webcams = webcamService.getImage(location);
-            var inputMedia = webcams.stream().map(webcam -> {
-                var iM = new InputMediaPhoto(webcam.getCurrentImage(), webcam.getTitle());
-                iM.setCaption(getCaption(webcam));
-                return iM;
-            }).toList();
-            if (inputMedia.size() == 1) {
-                sendPhoto = SendPhoto.builder()
-                        .caption(getCaption(webcams.getFirst()))
-                        .chatId(update.getMessage().getChatId())
-                        .photo(new InputFile(webcams.getFirst().getCurrentImage())).build();
-            } else {
-                mediaGroup = SendMediaGroup.builder()
-                        .chatId(update.getMessage().getChatId())
-                        .medias(inputMedia).build();
-            }
-            if(sendPhoto == null && mediaGroup == null) {
-                throw new NoSuchElementException("Could not find webcams");
-            }
-
-        } catch (Exception e) {
-            message = SendMessage.builder()
-                    .chatId(update.getMessage().getChatId())
-                    .text(e.getMessage())
-                    .build();
-        }
-        try {
-            if(sendPhoto != null) {
-                client.execute(sendPhoto);
-            } else if (mediaGroup != null) {
-                client.execute(mediaGroup);
-            } else {
-                client.execute(message);
-            }
-        } catch (TelegramApiException e) {
-            throw new RuntimeException(e);
-        }finally {
-            webcams.forEach(Webcam::cleanup);
-        }
-    }
-
-    private String getCaption(Webcam webcam) {
-        return webcam.getTitle() + " @ " + webcam.getLastUpdatedOn() + "\n" + webcam.getImages().getCurrent().getPreview();
-    }
-
-    public String sanitize(String input) {
-        return input.replace(">", "\\>")
-                .replace("<", "\\<")
-                .replace("-", "\\-");
     }
 
     protected String getToken() {

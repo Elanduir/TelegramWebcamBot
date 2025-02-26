@@ -1,7 +1,6 @@
 package org.miscbot.util;
 
 import java.io.File;
-import java.util.List;
 
 public class Webcam {
     private String title;
@@ -11,8 +10,23 @@ public class Webcam {
     private String lastUpdatedOn;
     private Images images;
     private File currentImage;
+    private Location originalLocation;
 
-    public Webcam(){}
+    public Location getOriginalLocation() {
+        return originalLocation;
+    }
+
+    public void setOriginalLocation(Location originalLocation) {
+        this.originalLocation = originalLocation;
+    }
+
+    public String getCurrentPreview() {
+        return getImages().getCurrent().getPreview();
+    }
+
+    public String getDaylightPreview() {
+        return getImages().getDaylight().getPreview();
+    }
 
     public File getCurrentImage() {
         return currentImage;
@@ -23,7 +37,10 @@ public class Webcam {
     }
 
     public boolean cleanup() {
-        return this.currentImage.delete();
+        if(this.currentImage != null) {
+            return this.currentImage.delete();
+        }
+        return true;
     }
 
     public Images getImages() {

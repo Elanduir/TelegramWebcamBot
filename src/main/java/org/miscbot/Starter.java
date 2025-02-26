@@ -6,11 +6,9 @@ import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 
 public class Starter {
     public static void main(String[] args) {
-        try {
+        try(TelegramBotsLongPollingApplication api = new TelegramBotsLongPollingApplication()) {
             MiscBot bot = new MiscBot();
-            TelegramBotsLongPollingApplication api = new TelegramBotsLongPollingApplication();
             api.registerBot(bot.getToken(), bot);
-
         } catch (Exception e) {
             throw new RuntimeException(e);
         }

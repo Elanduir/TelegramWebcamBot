@@ -2,7 +2,11 @@ package org.miscbot;
 
 
 import org.miscbot.services.GeocodingService;
+import org.miscbot.services.SrfMeteoService;
+import org.miscbot.services.WeatherService;
 import org.miscbot.services.WebcamService;
+import org.miscbot.util.Forecast;
+import org.miscbot.util.Mode;
 import org.miscbot.util.Webcam;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -26,29 +30,33 @@ import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 
 public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
-    private String botToken = System.getenv("MISC_BOT_TOKEN");
+    private final String botToken = System.getenv("MISC_BOT_TOKEN");
+    private final String botDebugToken = System.getenv("MISC_BOT_TOKEN_DEBUG");
     private final String windyToken = System.getenv("WINDY_TOKEN");
     private final String geocodingToken = System.getenv("GEOCODING_TOKEN");
+    private final String weatherToken = System.getenv("WEATHER_TOKEN");
     private final String COMMAND_WEBCAM = "/webcam";
     private final String COMMAND_WEBCAM_SHORT = "/w";
     private final String COMMAND_WEBCAM_NR = "/wn";
     private final String COMMAND_START = "/start";
+    private final String COMMAND_FORECAST = "/forecast";
+    private final Mode mode = Mode.getMode(botDebugToken);
+
     private static final Logger logger = LoggerFactory.getLogger(MiscBot.class);
 
-    TelegramClient client = new OkHttpTelegramClient(botToken);
+    TelegramClient client;
     WebcamService webcamService = new WebcamService(windyToken);
     GeocodingService geocodingService = new GeocodingService(geocodingToken);
+    WeatherService weatherService = new WeatherService(weatherToken);
 
     public MiscBot() {
-        String botDebugToken = System.getenv("MISC_BOT_TOKEN_DEBUG");
-        System.out.println(botDebugToken);
-        if(botDebugToken != null) {
-            this.botToken = botDebugToken;
-        }
         logger.info("BotToken: {}", botToken);
         logger.info("WindyToken: {}", windyToken);
         logger.info("GeocodingToken: {}", geocodingToken);
-        logger.info("Bot running in {} mode", botDebugToken != null ? "debug" : "production");
+        logger.info("WeatherToken: {}", weatherToken);
+        logger.info("Bot running in {} mode", mode.toString());
+
+        this.client = new OkHttpTelegramClient(getToken());
     }
 
     @Override
@@ -59,6 +67,7 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
                 case String s when s.startsWith(COMMAND_START) -> handleStart(update);
                 case String s when s.startsWith(COMMAND_WEBCAM_NR) -> handleWebcamNr(update);
                 case String s when s.startsWith(COMMAND_WEBCAM) || s.startsWith(COMMAND_WEBCAM_SHORT) -> handleWebcam(update);
+                case String s when s.startsWith(COMMAND_FORECAST) -> handleForecast(update);
                 default -> logger.info("invalid command detected: {}", update.getMessage().getText());
             }
         }
@@ -148,6 +157,54 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
         }
     }
 
+    private void handleForecast(Update update) {
+        var inbLocation = update.getMessage().getText().replace(COMMAND_FORECAST, "").trim().replace(" ", "%20");
+        SendMessage message;
+        var location = geocodingService.getLocation(inbLocation);
+
+
+
+        try {
+            var forecasts = weatherService.getForecasts(location);
+            String template = """
+                    <strong>Date</strong>: %s
+                    <strong>Temp °C</strong> l|h|a: %s | %s | %s
+                    <strong>Rain</strong> %%|mm: %s | %s
+                    <strong>Windspeed max</strong> kmh: %s
+                    """;
+            logger.debug("forecasts: {}", forecasts);
+            List<String> texts = forecasts.stream().map(forecast -> String.format(
+                    template,
+                    forecast.getDate(),
+                    forecast.getDay().getMaxtemp_c(), forecast.getDay().getMintemp_c(), forecast.getDay().getAvgtemp_c(),
+                    forecast.getDay().getDaily_chance_of_rain(), forecast.getDay().getTotalprecip_mm(),
+                    forecast.getDay().getMaxwind_kph()
+            )).toList();
+
+            var msgText =
+                    String.format("<strong>%s</strong>", location.getDisplay_name())  + "\n" +
+                            String.join("\n", texts);
+            message = SendMessage.builder()
+                    .chatId(update.getMessage().getChatId())
+                    .text(msgText)
+                    .parseMode(ParseMode.HTML)
+                    .build();
+
+
+        }catch (Exception e){
+            e.printStackTrace();
+            message = SendMessage.builder()
+                    .chatId(update.getMessage().getChatId())
+                    .text("Could not find forecast for requested location")
+                    .build();
+        }
+        try{
+            client.execute(message);
+        }catch (Exception e){
+            logger.error("Error during /forecast command: {}", e.getMessage());
+        }
+    }
+
     private List<Webcam> getAllWebcams(String location, int limit) throws Exception {
         return webcamService.getImage(geocodingService.getLocation(location), limit);
 
@@ -172,6 +229,6 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     protected String getToken() {
-        return botToken;
+        return mode == Mode.PROD ? botToken : botDebugToken;
     }
 }

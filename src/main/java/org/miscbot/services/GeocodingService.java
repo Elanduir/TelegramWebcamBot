@@ -4,6 +4,8 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.miscbot.util.Location;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -16,6 +18,7 @@ public class GeocodingService {
     HttpClient client = HttpClient.newHttpClient();
     String token;
     private final String urlTemplate = "https://geocode.maps.co/search?q=%s&api_key=%s";
+    private final Logger logger = LoggerFactory.getLogger(GeocodingService.class);
 
     public GeocodingService(String token) {
         this.token = token;
@@ -38,8 +41,7 @@ public class GeocodingService {
         }catch (NoSuchElementException e) {
             throw e;
         } catch (Exception e) {
-            System.out.println("Error during location search:");
-            System.out.println(e.getMessage());
+            logger.error("Error during location search: {}", e.getMessage());
         }
         return locations == null ? null : locations.getFirst();
     }

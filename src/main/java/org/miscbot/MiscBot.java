@@ -4,6 +4,8 @@ package org.miscbot;
 import org.miscbot.services.GeocodingService;
 import org.miscbot.services.WebcamService;
 import org.miscbot.util.Webcam;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
@@ -31,10 +33,17 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
     private final String COMMAND_WEBCAM_SHORT = "/w";
     private final String COMMAND_WEBCAM_NR = "/wn";
     private final String COMMAND_START = "/start";
+    private static final Logger logger = LoggerFactory.getLogger(MiscBot.class);
 
     TelegramClient client = new OkHttpTelegramClient(botToken);
     WebcamService webcamService = new WebcamService(windyToken);
     GeocodingService geocodingService = new GeocodingService(geocodingToken);
+
+    public MiscBot() {
+        logger.info("BotToken: {}", botToken);
+        logger.info("WindyToken: {}", windyToken);
+        logger.info("GeocodingToken: {}", geocodingToken);
+    }
 
     @Override
     public void consume(Update update) {
@@ -44,7 +53,7 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
                 case String s when s.startsWith(COMMAND_START) -> handleStart(update);
                 case String s when s.startsWith(COMMAND_WEBCAM_NR) -> handleWebcamNr(update);
                 case String s when s.startsWith(COMMAND_WEBCAM) || s.startsWith(COMMAND_WEBCAM_SHORT) -> handleWebcam(update);
-                default -> System.out.println("invalid command detected: " + update.getMessage().getText());
+                default -> logger.info("invalid command detected: {}", update.getMessage().getText());
             }
         }
     }
@@ -61,8 +70,7 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
         try {
             client.execute(message);
         }catch (Exception e) {
-            System.out.println("Exception during /start command:");
-            System.out.println(e.getMessage());
+            logger.error("Error during /start command: {}", e.getMessage());
         }
     }
 
@@ -78,7 +86,7 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
                  update.getMessage().setText("/wn " + Arrays.stream(split).skip(1).collect(Collectors.joining(" ")));
                  handleWebcamLimit(update, nr);
              }catch (NumberFormatException e){
-                 System.out.println("Invalid command: " + update.getMessage().getText());
+                 logger.info("Invalid command: {}", update.getMessage().getText());
              }
          }
     }
@@ -149,12 +157,11 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     private void logRequest(Update update) {
-        System.out.printf("Incoming Request:\nFrom: %s\nUsername: %s\nCommand: %s\n",
+        logger.info(
+                "\nIncoming Request:\nFrom: {}\nUsername: {}\nCommand: {}\n",
                 update.getMessage().getFrom().getFirstName() + " " + update.getMessage().getFrom().getLastName(),
                 update.getMessage().getFrom().getUserName(),
-                update.getMessage().getText()
-        );
-        System.out.println("-------------------");
+                update.getMessage().getText());
     }
 
     protected String getToken() {

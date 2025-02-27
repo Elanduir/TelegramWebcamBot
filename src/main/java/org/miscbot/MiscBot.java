@@ -162,13 +162,12 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
         SendMessage message;
         var location = geocodingService.getLocation(inbLocation);
 
-
-
         try {
             var forecasts = weatherService.getForecasts(location);
             String template = """
                     <strong>Date</strong>: %s
-                    <strong>Temp °C</strong> l|h|a: %s | %s | %s
+                    <strong>Condition</strong>: %s
+                    <strong>Temp °C</strong> h|l|a: %s | %s | %s
                     <strong>Rain</strong> %%|mm: %s | %s
                     <strong>Windspeed max</strong> kmh: %s
                     """;
@@ -176,6 +175,7 @@ public class MiscBot implements LongPollingSingleThreadUpdateConsumer {
             List<String> texts = forecasts.stream().map(forecast -> String.format(
                     template,
                     forecast.getDate(),
+                    forecast.getCondText(),
                     forecast.getDay().getMaxtemp_c(), forecast.getDay().getMintemp_c(), forecast.getDay().getAvgtemp_c(),
                     forecast.getDay().getDaily_chance_of_rain(), forecast.getDay().getTotalprecip_mm(),
                     forecast.getDay().getMaxwind_kph()

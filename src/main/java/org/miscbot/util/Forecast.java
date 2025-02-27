@@ -29,6 +29,10 @@ public class Forecast {
         this.location = location;
     }
 
+    public String getCondText() {
+        return getDay().getCondition().getText();
+    }
+
     public static class Day {
         private int maxtemp_c;
         private int mintemp_c;
@@ -36,7 +40,7 @@ public class Forecast {
         private int maxwind_kph;
         private int totalprecip_mm;
         private int daily_chance_of_rain;
-
+        private Condition condition;
 
         public int getMaxtemp_c() {
             return maxtemp_c;
@@ -84,6 +88,35 @@ public class Forecast {
 
         public void setDaily_chance_of_rain(int daily_chance_of_rain) {
             this.daily_chance_of_rain = daily_chance_of_rain;
+        }
+
+        public Condition getCondition() {
+            return condition;
+        }
+
+        public void setCondition(Condition condition) {
+            this.condition = condition;
+        }
+
+        public static class Condition {
+            private String text;
+            private String icon;
+
+            public String getText() {
+                return text;
+            }
+
+            public void setText(String text) {
+                this.text = text;
+            }
+
+            public String getIcon() {
+                return icon;
+            }
+
+            public void setIcon(String icon) {
+                this.icon = icon;
+            }
         }
     }
 }
